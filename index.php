@@ -376,46 +376,101 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             <strong><?= number_format($s['flagged']) ?></strong> row(s) contain values below the detection limit (stored as half the limit) or above the
             reporting range; see <code>Qualifier_Flags</code>.
         </div>
+        <div id="dataset-view">
+            <div class="card shadow-sm">
+                <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
+                    <h5 class="mb-0 fw-bold text-dark">
+                        <i class="fa-solid fa-table-cells me-2 text-primary"></i>Processed Dataset View:
+                        <span class="text-primary"><?= htmlspecialchars($selected) ?></span>
+                    </h5>
+                    <span class="badge bg-secondary px-3 py-2">
+                        Rows <?= $totalRows ? (($page - 1) * $perPage + 1) : 0 ?>–<?= min($page * $perPage, $totalRows) ?> of <?= number_format($totalRows) ?>
+                    </span>
+                </div>
+                <div class="card-body p-0">
+                    <?php if ($previewRows): ?>
+                        <div class="table-container">
+                            <table class="table table-hover align-middle mb-0 small">
+                                <thead class="sticky-top">
+                                    <tr><?php foreach ($headers as $head): ?><th class="py-3 px-3"><?= htmlspecialchars($head) ?></th><?php endforeach; ?></tr>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($previewRows as $row): ?>
+                                        <tr><?php foreach ($row as $cell): ?><td class="px-3 text-secondary"><?= htmlspecialchars((string)$cell) ?></td><?php endforeach; ?></tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="d-flex justify-content-between align-items-center p-3">
+                            <a class="btn btn-outline-secondary btn-sm js-page <?= $page <= 1 ? 'disabled' : '' ?>"
+                            href="?dataset=<?= urlencode($selected) ?>&page=<?= $page - 1 ?>">&laquo; Previous</a>
 
-        <div class="card shadow-sm">
-            <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
-                <h5 class="mb-0 fw-bold text-dark">
-                    <i class="fa-solid fa-table-cells me-2 text-primary"></i>Processed Dataset View:
-                    <span class="text-primary"><?= htmlspecialchars($selected) ?></span>
-                </h5>
-                <span class="badge bg-secondary px-3 py-2">
-                    Rows <?= $totalRows ? (($page - 1) * $perPage + 1) : 0 ?>–<?= min($page * $perPage, $totalRows) ?> of <?= number_format($totalRows) ?>
-                </span>
-            </div>
-            <div class="card-body p-0">
-                <?php if ($previewRows): ?>
-                    <div class="table-container">
-                        <table class="table table-hover align-middle mb-0 small">
-                            <thead class="sticky-top">
-                                <tr><?php foreach ($headers as $head): ?><th class="py-3 px-3"><?= htmlspecialchars($head) ?></th><?php endforeach; ?></tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($previewRows as $row): ?>
-                                    <tr><?php foreach ($row as $cell): ?><td class="px-3 text-secondary"><?= htmlspecialchars((string)$cell) ?></td><?php endforeach; ?></tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div class="d-flex justify-content-between align-items-center p-3">
-                        <a class="btn btn-outline-secondary btn-sm <?= $page <= 1 ? 'disabled' : '' ?>" href="?dataset=<?= urlencode($selected) ?>&page=<?= $page - 1 ?>">&laquo; Previous</a>
-                        <span class="small text-muted">Page <?= $page ?> of <?= $totalPages ?></span>
-                        <a class="btn btn-outline-secondary btn-sm <?= $page >= $totalPages ? 'disabled' : '' ?>" href="?dataset=<?= urlencode($selected) ?>&page=<?= $page + 1 ?>">Next &raquo;</a>
-                    </div>
-                <?php else: ?>
-                    <div class="text-center py-5">
-                        <i class="fa-solid fa-folder-open text-muted fa-3x mb-3"></i>
-                        <p class="text-muted mb-0">No records found for this dataset selection.</p>
-                    </div>
-                <?php endif; ?>
+                            <form id="pageForm" method="get" class="d-flex align-items-center gap-2 small text-muted mb-0">
+                                <input type="hidden" name="dataset" value="<?= htmlspecialchars($selected) ?>">
+                                <span>Page</span>
+                                <input type="number" id="pageInput" name="page" min="1" max="<?= $totalPages ?>"
+                                    value="<?= $page ?>" class="form-control form-control-sm text-left" style="width:50px">
+                                <span>of <?= $totalPages ?></span>
+                            </form>
+
+                            <a class="btn btn-outline-secondary btn-sm js-page <?= $page >= $totalPages ? 'disabled' : '' ?>"
+                            href="?dataset=<?= urlencode($selected) ?>&page=<?= $page + 1 ?>">Next &raquo;</a>
+                        </div>
+                    <?php else: ?>
+                        <div class="text-center py-5">
+                            <i class="fa-solid fa-folder-open text-muted fa-3x mb-3"></i>
+                            <p class="text-muted mb-0">No records found for this dataset selection.</p>
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
         </div>
     <?php endif; ?>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    async function loadView(url, push = true) {
+    const y = window.scrollY;
+    try {
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'fetch' } });
+        const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+        const fresh = doc.getElementById('dataset-view');
+        if (!fresh) { window.location.href = url; return; }
+        document.getElementById('dataset-view').replaceWith(fresh);
+        if (push) history.pushState(null, '', url);
+        window.scrollTo(0, y);                 // stay exactly where you were
+    } catch (e) { window.location.href = url; }
+    }
+
+    // Previous / Next
+    document.addEventListener('click', e => {
+        const a = e.target.closest('a.js-page');
+        if (!a) return;
+        e.preventDefault();
+        if (!a.classList.contains('disabled')) loadView(a.href);
+    });
+
+    // Typed page number (Enter or leaving the field)
+    function goToTypedPage(input) {
+        const max = parseInt(input.max) || 1;
+        const v = Math.min(Math.max(1, parseInt(input.value) || 1), max);
+        input.value = v;
+        const p = new URLSearchParams(new FormData(input.form));
+        p.set('page', v);
+        loadView('?' + p.toString());
+    }
+    document.addEventListener('change', e => {
+        if (e.target.id === 'pageInput') goToTypedPage(e.target);
+    });
+    document.addEventListener('submit', e => {
+        if (e.target.id === 'pageForm') {
+            e.preventDefault();
+            goToTypedPage(e.target.querySelector('#pageInput'));
+        }
+    });
+
+    // Browser back/forward
+    window.addEventListener('popstate', () => loadView(location.href, false));
+    </script>
 </body>
 </html>
