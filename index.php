@@ -32,7 +32,7 @@ $paramCols = [
     17 => 'Chlorides_mgL',
 ];
 $headers = array_merge(
-    ['River', 'Year', 'Month', 'Station_No', 'Station_Name', 'Latitude', 'Longitude', 'Sample_Date', 'Sample_Time'],
+    ['River', 'Year', 'Month', 'Station_No', 'Station_Name', 'Latitude', 'Longitude', 'Date', 'Time'],
     array_values($paramCols),
     ['Qualifier_Flags']
 );
