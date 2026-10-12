@@ -380,7 +380,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             color: #1e293b; 
             font-family: 'Inter', system-ui, -apple-system, sans-serif; 
             min-height: 100vh;
-            padding-bottom: 140px; 
         }
         
         /* Pastel Blue Professional Header with Rounded Sides */
@@ -467,12 +466,12 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
         /* Floating Action Button */
         .fab-download {
             position: fixed;
-            bottom: 35px;
-            right: 35px;
+            bottom: 25px;
+            right: 25px;
             z-index: 1050;
             border-radius: 50rem;
-            padding: 16px 32px;
-            font-size: 1.15rem;
+            padding: 14px 28px;
+            font-size: 1.1rem;
             font-weight: 700;
             background-color: #1e293b; 
             color: #ffffff;
@@ -489,7 +488,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
     </style>
 </head>
 <body>
-<div class="container-fluid px-4 py-5" style="max-width: 1400px;">
+<div class="container-fluid px-4 py-4" style="max-width: 1500px;">
     <!-- Header with Centered Title "DATA PREPROCESSING" and Right-Aligned Info with Vertical Divider -->
     <div class="report-header">
         <div class="row align-items-center g-3">
@@ -558,12 +557,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
                 </div>
             </div>
         </div>
-
-        <div class="alert bg-white border border-blue-300 fs-5 p-3 rounded-4 shadow-sm mb-4" style="color: #1e293b;">
-            <i class="fa-solid fa-circle-info me-2 text-primary"></i>
-            <strong><?= number_format($s['corrected']) ?></strong> row(s) had Year/Month corrected from the Date column (banner typos).
-            <strong><?= number_format($s['flagged']) ?></strong> row(s) contain values below the detection limit or above the reporting range; see <code>Qualifier_Flags</code>.
-        </div>
         
         <div id="dataset-view">
             <div class="card shadow-sm">
@@ -590,7 +583,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
                                 </tbody>
                             </table>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center p-4 border-top border-slate-300 rounded-0" style="background-color: #e2e8f0;">
+                        <div class="d-flex justify-content-between align-items-center p-3 border-top border-slate-300 rounded-0" style="background-color: #e2e8f0;">
                             <a class="btn btn-outline-dark btn-lg js-page <?= $page <= 1 ? 'disabled' : '' ?>"
                             href="?dataset=<?= urlencode($selected) ?>&page=<?= $page - 1 ?>">&laquo; Previous</a>
 
