@@ -237,6 +237,69 @@ function writeCsv(string $path, array $headers, array $rows): void
     fclose($h);
 }
 
+function xlsxCol(int $i): string {
+    $s = '';
+    for ($i++; $i > 0; $i = intdiv($i - 1, 26)) $s = chr(65 + ($i - 1) % 26) . $s;
+    return $s;
+}
+
+function writeXlsx(string $path, array $headers, array $rows, int $dateCol = 7): void
+{
+    $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+    $X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+    $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+
+    // column widths: station name wide, date/flags medium, rest standard
+    $cols = '';
+    foreach ($headers as $i => $h) {
+        $w = $h === 'Station_Name' ? 48 : (in_array($h, ['Date', 'Qualifier_Flags', 'Fecal_Coliform_MPN', 'Total_Coliform_MPN']) ? 20 : 14);
+        $cols .= '<col min="' . ($i + 1) . '" max="' . ($i + 1) . '" width="' . $w . '" customWidth="1"/>';
+    }
+
+    $sheet = $X . '<worksheet xmlns="' . $ns . '"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>' . $cols . '</cols><sheetData>';
+    $sheet .= '<row r="1">';
+    foreach ($headers as $i => $h) $sheet .= '<c r="' . xlsxCol($i) . '1" t="inlineStr" s="2"><is><t>' . $esc($h) . '</t></is></c>';
+    $sheet .= '</row>';
+
+    foreach ($rows as $r => $row) {
+        $n = $r + 2;
+        $sheet .= '<row r="' . $n . '">';
+        foreach ($row as $i => $v) {
+            if ($v === null || $v === '') continue;
+            $ref = xlsxCol($i) . $n;
+            if ($i === $dateCol && preg_match('/^\d{4}-\d{2}-\d{2}$/', (string)$v)) {
+                $serial = (int)(strtotime($v . ' UTC') / 86400) + 25569;
+                $sheet .= '<c r="' . $ref . '" s="1"><v>' . $serial . '</v></c>';
+            } elseif (is_int($v) || is_float($v)) {
+                $sheet .= '<c r="' . $ref . '"><v>' . $v . '</v></c>';
+            } else {
+                $sheet .= '<c r="' . $ref . '" t="inlineStr"><is><t>' . $esc($v) . '</t></is></c>';
+            }
+        }
+        $sheet .= '</row>';
+    }
+    $sheet .= '</sheetData></worksheet>';
+
+    $styles = $X . '<styleSheet xmlns="' . $ns . '"><numFmts count="1"><numFmt numFmtId="164" formatCode="yyyy\-mm\-dd"/></numFmts>'
+        . '<fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts>'
+        . '<fills count="2"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill></fills>'
+        . '<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>'
+        . '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
+        . '<cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>'
+        . '<xf numFmtId="164" fontId="0" fillId="0" borderId="0" xfId="0" applyNumberFormat="1"/>'
+        . '<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs></styleSheet>';
+
+    $zip = new ZipArchive();
+    $zip->open($path, ZipArchive::CREATE | ZipArchive::OVERWRITE);
+    $zip->addFromString('[Content_Types].xml', $X . '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>');
+    $zip->addFromString('_rels/.rels', $X . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    $zip->addFromString('xl/workbook.xml', $X . '<workbook xmlns="' . $ns . '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Cleaned" sheetId="1" r:id="rId1"/></sheets></workbook>');
+    $zip->addFromString('xl/_rels/workbook.xml.rels', $X . '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+    $zip->addFromString('xl/styles.xml', $styles);
+    $zip->addFromString('xl/worksheets/sheet1.xml', $sheet);
+    $zip->close();
+}
+
 /* ---------------------------------------------------------------- run pipeline */
 
 $error = null;
@@ -259,6 +322,7 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
             [$rows, $stats] = processSheet($sheets[$river], $river);
             $file = "$cleanDir/MMORS_{$river}_cleaned.csv";
             writeCsv($file, $headers, $rows);
+            writeXlsx("$cleanDir/MMORS_{$river}_cleaned.xlsx", $headers, $rows);   // <- add here
             $datasets[$river] = ['rows' => $rows, 'stats' => $stats, 'file' => $file];
             $allRows = array_merge($allRows, $rows);
             foreach ($allStats as $k => $_) $allStats[$k] += $stats[$k];
@@ -266,6 +330,7 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
         if ($datasets) {
             $file = "$cleanDir/MMORS_All_Rivers_cleaned.csv";
             writeCsv($file, $headers, $allRows);
+            writeXlsx("$cleanDir/MMORS_All_Rivers_cleaned.xlsx", $headers, $allRows);
             $datasets[$combinedLabel] = ['rows' => $allRows, 'stats' => $allStats, 'file' => $file];
         }
     } catch (Throwable $e) {
@@ -279,12 +344,19 @@ if (!isset($datasets[$selected]) && $datasets) $selected = array_key_first($data
 // Download (whitelisted by dataset label, served only from ./cleaned)
 if (isset($_GET['download']) && isset($datasets[$_GET['download']])) {
     $f = $datasets[$_GET['download']]['file'];
+    $isXlsx = ($_GET['format'] ?? 'xlsx') === 'xlsx';
+    if ($isXlsx) $f = preg_replace('/\.csv$/', '.xlsx', $f);
     if (file_exists($f)) {
-        header('Content-Type: text/csv');
+        header('Content-Type: ' . ($isXlsx
+            ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            : 'text/csv'));
         header('Content-Disposition: attachment; filename="' . basename($f) . '"');
+        header('Content-Length: ' . filesize($f));
         readfile($f);
         exit;
     }
+    http_response_code(404);
+    exit('File not found: ' . basename($f) . ' (check that writeXlsx() ran and ./cleaned is writable)');
 }
 
 $cur = $datasets[$selected] ?? null;
@@ -326,8 +398,8 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
         </div>
         <div class="mt-3 mt-md-0">
             <?php if ($cur): ?>
-                <a href="?dataset=<?= urlencode($selected) ?>&download=<?= urlencode($selected) ?>" class="btn btn-success btn-lg px-4 shadow">
-                    <i class="fa-solid fa-cloud-arrow-down me-2"></i>Download Cleaned CSV
+                <a href="?dataset=<?= urlencode($selected) ?>&download=<?= urlencode($selected) ?>&format=xlsx" class="btn btn-success btn-lg px-4 shadow">
+                    <i class="fa-solid fa-file-excel me-2"></i>Download Excel
                 </a>
             <?php endif; ?>
         </div>
