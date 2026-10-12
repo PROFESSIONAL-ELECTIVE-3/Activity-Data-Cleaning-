@@ -12,7 +12,7 @@
  */
 
 $workbookFile = __DIR__ . '/MMORS_water_quality_results_2012-2018_orig.xlsx';
-$rivers = ['Marilao', 'Meycauayan', 'Obando'];            // sheet names in the workbook
+$rivers = ['Marilao', 'Meycauayan', 'Obando'];          // sheet names in the workbook
 $combinedLabel = 'All Rivers';
 $perPage = 25;
 
@@ -93,7 +93,7 @@ function readWorkbook(string $path): array
             foreach ($row->c as $c) {
                 $t = (string)$c['t'];
                 $val = null;
-                if ($t === 's')              $val = $shared[(int)$c->v] ?? null;
+                if ($t === 's')             $val = $shared[(int)$c->v] ?? null;
                 elseif ($t === 'inlineStr')  $val = (string)$c->is->t;
                 elseif ($t === 'str')        $val = (string)$c->v;
                 elseif ($t === 'b' || $t === 'e') $val = null;
@@ -204,7 +204,7 @@ function processSheet(array $rows, string $river): array
             $values[] = ($val === null) ? null : round($val, 6);
         }
 
-        if (!$hasData) {                       // station row with no measurements (e.g. "NO SAMPLING CONDUCTED")
+        if (!$hasData) {                     // station row with no measurements (e.g. "NO SAMPLING CONDUCTED")
             $stats['missing']++;
             continue;
         }
@@ -374,126 +374,273 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background-color: #f8f9fa; font-family: 'Inter', system-ui, -apple-system, sans-serif; }
-        .hero-banner { background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); color: white; border-radius: 16px; padding: 30px; margin-bottom: 30px; }
-        .nav-tabs .nav-link { color: #64748b; border: none; font-weight: 600; padding: 12px 24px; border-radius: 8px; transition: all 0.2s ease; }
-        .nav-tabs .nav-link:hover { color: #0f172a; background-color: #e2e8f0; }
-        .nav-tabs .nav-link.active { color: #fff; background-color: #0d6efd; box-shadow: 0 4px 12px rgba(13, 110, 253, 0.25); }
-        .card { border: none; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); }
-        .metric-card { border-top: 4px solid #0d6efd; }
-        .table-container { max-height: 520px; overflow: auto; border-radius: 10px; border: 1px solid #e2e8f0; }
-        .table-container td, .table-container th { white-space: nowrap; }
-        thead.sticky-top th { background-color: #0f172a !important; color: white; position: sticky; top: 0; z-index: 10; font-weight: 500; letter-spacing: 0.5px; }
+        /* Pastel Shades of Blue, Gray, White, and Black */
+        body { 
+            background-color: #f1f5f9; 
+            color: #1e293b; 
+            font-family: 'Inter', system-ui, -apple-system, sans-serif; 
+            min-height: 100vh;
+            padding-bottom: 140px; 
+        }
+        
+        /* Pastel Blue Professional Header with Rounded Sides */
+        .report-header {
+            background-color: #dbeafe;
+            color: #1e3a8a;
+            border-radius: 16px;
+            padding: 30px 35px;
+            margin-bottom: 25px;
+            border: 1px solid #93c5fd;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
+        }
+
+        /* Containers with Soft Rounded Corners and Solid Neutral Borders */
+        .card { 
+            background-color: #ffffff; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 16px !important; 
+            overflow: hidden; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04); 
+            color: #1e293b; 
+            margin-bottom: 25px;
+        }
+
+        /* Crystal Clear Table Styling */
+        .table-container { 
+            max-height: 550px; 
+            overflow: auto; 
+            border-radius: 0px; 
+            border: 1px solid #cbd5e1; 
+            background-color: #ffffff; 
+        }
+        .table-container td { 
+            white-space: nowrap; 
+            color: #1e293b !important; 
+            font-weight: 500;
+            font-size: 1rem; 
+        }
+        .table-hover tbody tr:hover { 
+            background-color: #f8fafc !important; 
+        }
+        thead.sticky-top th { 
+            background-color: #1e293b !important; 
+            color: #ffffff !important; 
+            position: sticky; 
+            top: 0; 
+            z-index: 10; 
+            font-weight: 700; 
+            font-size: 1rem;
+            border-bottom: 2px solid #3b82f6; 
+        }
+        
+        /* Interactive River Dropdown with Rounded Corners */
+        .river-select-box {
+            background-color: #ffffff;
+            border: 1px solid #94a3b8;
+            color: #1e293b;
+            font-weight: 600;
+            font-size: 1.15rem;
+            padding: 12px 20px;
+            border-radius: 12px; 
+            width: 100%;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+            transition: all 0.2s ease;
+        }
+        .river-select-box:focus {
+            background-color: #ffffff;
+            color: #1e293b;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
+        }
+
+        /* Pastel Technical Summary Panel with Rounded Corners */
+        .technical-summary-panel {
+            background-color: #eff6ff; 
+            border-radius: 16px; 
+            border: 1px solid #bfdbfe;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+            color: #1e293b;
+            padding: 25px 30px;
+            margin-bottom: 25px;
+        }
+
+        /* Floating Action Button */
+        .fab-download {
+            position: fixed;
+            bottom: 35px;
+            right: 35px;
+            z-index: 1050;
+            border-radius: 50rem;
+            padding: 16px 32px;
+            font-size: 1.15rem;
+            font-weight: 700;
+            background-color: #1e293b; 
+            color: #ffffff;
+            border: 1px solid #475569;
+            box-shadow: 0 8px 25px rgba(30, 41, 59, 0.25);
+            transition: all 0.2s ease;
+        }
+        .fab-download:hover {
+            transform: translateY(-3px);
+            background-color: #0f172a;
+            box-shadow: 0 12px 30px rgba(30, 41, 59, 0.35);
+            color: #ffffff;
+        }
     </style>
 </head>
 <body>
-<div class="container-fluid px-4 py-5">
-    <div class="hero-banner shadow-sm d-flex flex-wrap justify-content-between align-items-center">
-        <div>
-            <span class="badge bg-primary bg-opacity-25 text-info px-3 py-2 rounded-pill mb-2 fw-semibold">
-                <i class="fa-solid fa-water me-2"></i>PHP Data Preprocessing Pipeline
-            </span>
-            <h1 class="fw-bold mb-1 display-6">MMORS Water Quality Analytics</h1>
-            <p class="text-muted mb-0">Interactive cleaning, verification, and transformation dashboard (2012–2018)</p>
-        </div>
-        <div class="mt-3 mt-md-0">
-            <?php if ($cur): ?>
-                <a href="?dataset=<?= urlencode($selected) ?>&download=<?= urlencode($selected) ?>&format=xlsx" class="btn btn-success btn-lg px-4 shadow">
-                    <i class="fa-solid fa-file-excel me-2"></i>Download Excel
-                </a>
-            <?php endif; ?>
+<div class="container-fluid px-4 py-5" style="max-width: 1400px;">
+    <!-- Header with Centered Title "DATA PREPROCESSING" and Right-Aligned Info with Vertical Divider -->
+    <div class="report-header">
+        <div class="row align-items-center g-3">
+            <div class="col-lg-7 text-center text-lg-start">
+                <h1 class="fw-bold display-6 mb-0" style="color: #1e3a8a; letter-spacing: 0.5px;">DATA PREPROCESSING</h1>
+            </div>
+            <div class="col-lg-5 text-center text-lg-end border-start-lg border-blue-300 ps-lg-4">
+                <div class="mb-1">
+                    <span class="badge px-3 py-2 rounded-pill fw-bold fs-6" style="background-color: #bfdbfe; color: #1e3a8a; border: 1px solid #60a5fa;">
+                        Programming Language Used: PHP
+                    </span>
+                </div>
+                <div>
+                    <span class="fs-6 fw-semibold" style="color: #334155;">Dataset Range: 2012–2018</span>
+                </div>
+            </div>
         </div>
     </div>
 
     <?php if ($error): ?>
-        <div class="alert alert-danger"><i class="fa-solid fa-triangle-exclamation me-2"></i><?= htmlspecialchars($error) ?></div>
+        <div class="alert alert-danger bg-danger text-white fs-5 rounded-4"><i class="fa-solid fa-triangle-exclamation me-2"></i><?= htmlspecialchars($error) ?></div>
     <?php endif; ?>
 
-    <ul class="nav nav-tabs border-0 gap-2 mb-4">
-        <?php foreach ($datasets as $label => $d): ?>
-            <li class="nav-item">
-                <a class="nav-link <?= ($selected === $label) ? 'active' : '' ?>" href="?dataset=<?= urlencode($label) ?>">
-                    <i class="fa-solid fa-chart-line me-2"></i><?= htmlspecialchars($label) ?>
-                </a>
-            </li>
-        <?php endforeach; ?>
-    </ul>
+    <!-- Interactive River Dropdown Selector (Stacked & Cleaned Spacing) -->
+    <div class="card p-4 shadow-sm">
+        <div class="row align-items-center g-3">
+            <div class="col-12">
+                <label for="riverSelect" class="form-label fw-bold mb-2 fs-5" style="color: #1e293b;">
+                    <i class="fa-solid fa-filter me-2 text-primary"></i>River / Dataset Selection:
+                </label>
+                <select id="riverSelect" class="form-select river-select-box" onchange="location = this.value;">
+                    <?php foreach ($datasets as $label => $d): ?>
+                        <option value="?dataset=<?= urlencode($label) ?>" <?= ($selected === $label) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($label) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+        </div>
+    </div>
 
     <?php if ($cur): $s = $cur['stats']; ?>
-        <div class="row g-4 mb-3">
-            <div class="col-md-3"><div class="card metric-card p-4 bg-white">
-                <span class="text-muted small text-uppercase fw-bold">Initial Records</span>
-                <h2 class="fw-bold text-dark mt-2 mb-0"><?= number_format($s['initial']) ?></h2>
-                <span class="badge bg-light text-secondary mt-2 w-50">Station readings</span>
-            </div></div>
-            <div class="col-md-3"><div class="card metric-card p-4 bg-white" style="border-top-color:#198754;">
-                <span class="text-muted small text-uppercase fw-bold">Cleaned Records</span>
-                <h2 class="fw-bold text-success mt-2 mb-0"><?= number_format(count($cur['rows'])) ?></h2>
-                <span class="badge bg-success bg-opacity-10 text-success mt-2 w-50">Analysis Ready</span>
-            </div></div>
-            <div class="col-md-3"><div class="card metric-card p-4 bg-white" style="border-top-color:#ffc107;">
-                <span class="text-muted small text-uppercase fw-bold">Missing Skipped</span>
-                <h2 class="fw-bold text-dark mt-2 mb-0"><?= number_format($s['missing']) ?></h2>
-                <span class="badge bg-warning bg-opacity-10 text-dark mt-2 w-50">No measurements</span>
-            </div></div>
-            <div class="col-md-3"><div class="card metric-card p-4 bg-white" style="border-top-color:#dc3545;">
-                <span class="text-muted small text-uppercase fw-bold">Duplicates Dropped</span>
-                <h2 class="fw-bold text-danger mt-2 mb-0"><?= number_format($s['duplicates']) ?></h2>
-                <span class="badge bg-danger bg-opacity-10 text-danger mt-2 w-50">Redundant rows</span>
-            </div></div>
+        <!-- Technical Summary Panel (3-Column Balanced Layout) -->
+        <div class="technical-summary-panel shadow-sm">
+            <div class="text-uppercase fw-bold border-bottom border-blue-200 pb-2 mb-3 fs-5" style="letter-spacing: 0.5px; color: #1e3a8a;">
+                <i class="fa-solid fa-terminal me-2"></i>Execution Ledger Summary &mdash; [<?= htmlspecialchars($selected) ?>]
+            </div>
+            <div class="row g-3" style="font-family: monospace; font-size: 1rem; color: #334155;">
+                <div class="col-md-4">
+                    <div class="mb-2">&bull; Initial Records Read:<br><strong class="text-dark fs-4"><?= number_format($s['initial']) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-2">&bull; Final Cleaned Rows:<br><strong class="fs-4" style="color: #2563eb;"><?= number_format(count($cur['rows'])) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-2">&bull; Missing Skipped:<br><strong class="fs-4" style="color: #d97706;"><?= number_format($s['missing']) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-0">&bull; Duplicates Dropped:<br><strong class="fs-4" style="color: #dc2626;"><?= number_format($s['duplicates']) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-0">&bull; Dates Corrected:<br><strong class="fs-4" style="color: #0284c7;"><?= number_format($s['corrected']) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-0">&bull; Flags Generated:<br><strong class="text-dark fs-4"><?= number_format($s['flagged']) ?></strong></div>
+                </div>
+            </div>
         </div>
-        <div class="alert alert-info small">
-            <i class="fa-solid fa-circle-info me-2"></i>
+
+        <div class="alert bg-white border border-blue-300 fs-5 p-3 rounded-4 shadow-sm mb-4" style="color: #1e293b;">
+            <i class="fa-solid fa-circle-info me-2 text-primary"></i>
             <strong><?= number_format($s['corrected']) ?></strong> row(s) had Year/Month corrected from the Date column (banner typos).
-            <strong><?= number_format($s['flagged']) ?></strong> row(s) contain values below the detection limit (stored as half the limit) or above the
-            reporting range; see <code>Qualifier_Flags</code>.
+            <strong><?= number_format($s['flagged']) ?></strong> row(s) contain values below the detection limit or above the reporting range; see <code>Qualifier_Flags</code>.
         </div>
+        
         <div id="dataset-view">
             <div class="card shadow-sm">
-                <div class="card-header bg-white py-3 px-4 d-flex justify-content-between align-items-center border-0">
-                    <h5 class="mb-0 fw-bold text-dark">
+                <div class="card-header py-3 px-4 d-flex justify-content-between align-items-center border-bottom border-slate-300 rounded-0" style="background-color: #e2e8f0;">
+                    <h5 class="mb-0 fw-bold fs-4" style="color: #1e293b;">
                         <i class="fa-solid fa-table-cells me-2 text-primary"></i>Processed Dataset View:
-                        <span class="text-primary"><?= htmlspecialchars($selected) ?></span>
+                        <span style="color: #2563eb;"><?= htmlspecialchars($selected) ?></span>
                     </h5>
-                    <span class="badge bg-secondary px-3 py-2">
+                    <span class="badge bg-secondary px-3 py-2 fs-6 rounded-0">
                         Rows <?= $totalRows ? (($page - 1) * $perPage + 1) : 0 ?>–<?= min($page * $perPage, $totalRows) ?> of <?= number_format($totalRows) ?>
                     </span>
                 </div>
                 <div class="card-body p-0">
                     <?php if ($previewRows): ?>
                         <div class="table-container">
-                            <table class="table table-hover align-middle mb-0 small">
+                            <table class="table table-hover align-middle mb-0">
                                 <thead class="sticky-top">
                                     <tr><?php foreach ($headers as $head): ?><th class="py-3 px-3"><?= htmlspecialchars($head) ?></th><?php endforeach; ?></tr>
                                 </thead>
                                 <tbody>
                                     <?php foreach ($previewRows as $row): ?>
-                                        <tr><?php foreach ($row as $cell): ?><td class="px-3 text-secondary"><?= htmlspecialchars((string)$cell) ?></td><?php endforeach; ?></tr>
+                                        <tr><?php foreach ($row as $cell): ?><td class="px-3"><?= htmlspecialchars((string)$cell) ?></td><?php endforeach; ?></tr>
                                     <?php endforeach; ?>
                                 </tbody>
                             </table>
                         </div>
-                        <div class="d-flex justify-content-between align-items-center p-3">
-                            <a class="btn btn-outline-secondary btn-sm js-page <?= $page <= 1 ? 'disabled' : '' ?>"
+                        <div class="d-flex justify-content-between align-items-center p-4 border-top border-slate-300 rounded-0" style="background-color: #e2e8f0;">
+                            <a class="btn btn-outline-dark btn-lg js-page <?= $page <= 1 ? 'disabled' : '' ?>"
                             href="?dataset=<?= urlencode($selected) ?>&page=<?= $page - 1 ?>">&laquo; Previous</a>
 
-                            <form id="pageForm" method="get" class="d-flex align-items-center gap-2 small text-muted mb-0">
+                            <form id="pageForm" method="get" class="d-flex align-items-center gap-2 fs-5 mb-0" style="color: #1e293b;">
                                 <input type="hidden" name="dataset" value="<?= htmlspecialchars($selected) ?>">
                                 <span>Page</span>
                                 <input type="number" id="pageInput" name="page" min="1" max="<?= $totalPages ?>"
-                                    value="<?= $page ?>" class="form-control form-control-sm text-left" style="width:50px">
+                                    value="<?= $page ?>" class="form-control form-control-lg bg-white text-dark border-slate-400 text-center fw-bold rounded-0" style="width:80px">
                                 <span>of <?= $totalPages ?></span>
                             </form>
 
-                            <a class="btn btn-outline-secondary btn-sm js-page <?= $page >= $totalPages ? 'disabled' : '' ?>"
+                            <a class="btn btn-outline-dark btn-lg js-page <?= $page >= $totalPages ? 'disabled' : '' ?>"
                             href="?dataset=<?= urlencode($selected) ?>&page=<?= $page + 1 ?>">Next &raquo;</a>
                         </div>
                     <?php else: ?>
                         <div class="text-center py-5">
-                            <i class="fa-solid fa-folder-open text-muted fa-3x mb-3"></i>
-                            <p class="text-muted mb-0">No records found for this dataset selection.</p>
+                            <i class="fa-solid fa-folder-open text-muted fa-4x mb-3"></i>
+                            <p class="text-muted fs-5 mb-0">No records found for this dataset selection.</p>
                         </div>
                     <?php endif; ?>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Download Button -->
+        <button type="button" class="btn btn-lg fab-download" data-bs-toggle="modal" data-bs-target="#downloadConfirmModal">
+            <i class="fa-solid fa-file-excel me-2"></i>Download
+        </button>
+
+        <!-- Download Confirmation Modal -->
+        <div class="modal fade" id="downloadConfirmModal" tabindex="-1" aria-labelledby="downloadConfirmModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content bg-white text-dark border border-slate-400 shadow-lg rounded-4">
+                    <div class="modal-header border-0 pb-0">
+                        <h5 class="modal-title fw-bold fs-4 text-dark" id="downloadConfirmModalLabel">
+                            <i class="fa-solid fa-file-excel text-primary me-2"></i>Confirm Download
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body py-4">
+                        <p class="text-secondary mb-0 fs-5">
+                            Are you sure you want to download <strong class="text-dark">"<?= htmlspecialchars($selected) ?>"</strong> file?
+                        </p>
+                    </div>
+                    <div class="modal-footer border-0 pt-0">
+                        <button type="button" class="btn btn-outline-secondary px-4 py-2 fs-5 rounded-pill" data-bs-dismiss="modal">Cancel</button>
+                        <a href="?dataset=<?= urlencode($selected) ?>&download=<?= urlencode($selected) ?>&format=xlsx" class="btn btn-dark px-4 py-2 fs-5 rounded-pill shadow-sm">
+                            Yes, Download
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>
@@ -510,7 +657,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
         if (!fresh) { window.location.href = url; return; }
         document.getElementById('dataset-view').replaceWith(fresh);
         if (push) history.pushState(null, '', url);
-        window.scrollTo(0, y);                 // stay exactly where you were
+        window.scrollTo(0, y);                // stay exactly where you were
     } catch (e) { window.location.href = url; }
     }
 
