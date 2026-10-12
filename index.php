@@ -534,7 +534,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
         <!-- Technical Summary Panel (3-Column Balanced Layout) -->
         <div class="technical-summary-panel shadow-sm">
             <div class="text-uppercase fw-bold border-bottom border-blue-200 pb-2 mb-3 fs-5" style="letter-spacing: 0.5px; color: #1e3a8a;">
-                <i class="fa-solid fa-terminal me-2"></i>Execution Ledger Summary &mdash; [<?= htmlspecialchars($selected) ?>]
+                <i class="fa-solid fa-terminal me-2"></i>Data Cleansing Summary &mdash; [<?= htmlspecialchars($selected) ?>]
             </div>
             <div class="row g-3" style="font-family: monospace; font-size: 1rem; color: #334155;">
                 <div class="col-md-4">
