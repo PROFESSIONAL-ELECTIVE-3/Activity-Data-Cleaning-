@@ -1,18 +1,7 @@
 <?php
-/**
- * MMORS Water Quality Data Preprocessing Dashboard
- * Group Activity: Data Preprocessing Using PHP
- *
- * Reads the ORIGINAL workbook (all 18 columns) directly, so nothing important is lost:
- * station name, coordinates, date, time, and all 12 parameters (incl. BOD, Total Coliform, Ammonia).
- * The workbook is never modified; cleaned CSVs are written to ./cleaned/
- *
- * Requires: PHP ZipArchive + SimpleXML (enabled by default in XAMPP; php-zip / php-xml on Linux).
- * Put MMORS_water_quality_results_2012-2018_orig.xlsx in the same folder as this file.
- */
 
 $workbookFile = __DIR__ . '/MMORS_water_quality_results_2012-2018_orig.xlsx';
-$rivers = ['Marilao', 'Meycauayan', 'Obando'];          // sheet names in the workbook
+$rivers = ['Marilao', 'Meycauayan', 'Obando'];           // sheet names in the workbook
 $combinedLabel = 'All Rivers';
 $perPage = 25;
 
@@ -204,7 +193,7 @@ function processSheet(array $rows, string $river): array
             $values[] = ($val === null) ? null : round($val, 6);
         }
 
-        if (!$hasData) {                     // station row with no measurements (e.g. "NO SAMPLING CONDUCTED")
+        if (!$hasData) {                    // station row with no measurements (e.g. "NO SAMPLING CONDUCTED")
             $stats['missing']++;
             continue;
         }
@@ -249,7 +238,6 @@ function writeXlsx(string $path, array $headers, array $rows, int $dateCol = 7):
     $X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
     $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
-    // column widths: station name wide, date/flags medium, rest standard
     $cols = '';
     foreach ($headers as $i => $h) {
         $w = $h === 'Station_Name' ? 48 : (in_array($h, ['Date', 'Qualifier_Flags', 'Fecal_Coliform_MPN', 'Total_Coliform_MPN']) ? 20 : 14);
@@ -382,7 +370,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             min-height: 100vh;
         }
         
-        /* Pastel Blue Professional Header with Rounded Sides */
         .report-header {
             background-color: #dbeafe;
             color: #1e3a8a;
@@ -393,7 +380,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.04);
         }
 
-        /* Containers with Soft Rounded Corners and Solid Neutral Borders */
         .card { 
             background-color: #ffffff; 
             border: 1px solid #cbd5e1; 
@@ -404,7 +390,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             margin-bottom: 25px;
         }
 
-        /* Crystal Clear Table Styling */
         .table-container { 
             max-height: 550px; 
             overflow: auto; 
@@ -432,7 +417,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             border-bottom: 2px solid #3b82f6; 
         }
         
-        /* Interactive River Dropdown with Rounded Corners */
         .river-select-box {
             background-color: #ffffff;
             border: 1px solid #94a3b8;
@@ -452,7 +436,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25);
         }
 
-        /* Pastel Technical Summary Panel with Rounded Corners */
         .technical-summary-panel {
             background-color: #eff6ff; 
             border-radius: 16px; 
@@ -463,7 +446,6 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
             margin-bottom: 25px;
         }
 
-        /* Floating Action Button */
         .fab-download {
             position: fixed;
             bottom: 25px;
@@ -531,7 +513,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
     </div>
 
     <?php if ($cur): $s = $cur['stats']; ?>
-        <!-- Technical Summary Panel (3-Column Balanced Layout) -->
+        <!-- Technical Summary Panel -->
         <div class="technical-summary-panel shadow-sm">
             <div class="text-uppercase fw-bold border-bottom border-blue-200 pb-2 mb-3 fs-5" style="letter-spacing: 0.5px; color: #1e3a8a;">
                 <i class="fa-solid fa-terminal me-2"></i>Data Cleansing Summary &mdash; [<?= htmlspecialchars($selected) ?>]
@@ -650,7 +632,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
         if (!fresh) { window.location.href = url; return; }
         document.getElementById('dataset-view').replaceWith(fresh);
         if (push) history.pushState(null, '', url);
-        window.scrollTo(0, y);                // stay exactly where you were
+        window.scrollTo(0, y);              // stay exactly where you were
     } catch (e) { window.location.href = url; }
     }
 
