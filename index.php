@@ -303,7 +303,7 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
             [$rows, $stats] = processSheet($sheets[$river], $river);
             $file = "$cleanDir/MMORS_{$river}_cleaned.csv";
             writeCsv($file, $headers, $rows);
-            writeXlsx("$cleanDir/MMORS_{$river}_cleaned.xlsx", $headers, $rows);   // <- add here
+            writeXlsx("$cleanDir/MMORS_{$river}_cleaned.xlsx", $headers, $rows);
             $datasets[$river] = ['rows' => $rows, 'stats' => $stats, 'file' => $file];
             $allRows = array_merge($allRows, $rows);
             foreach ($allStats as $k => $_) $allStats[$k] += $stats[$k];
