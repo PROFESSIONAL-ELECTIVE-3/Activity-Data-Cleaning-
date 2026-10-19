@@ -5,7 +5,7 @@ $rivers = ['Marilao', 'Meycauayan', 'Obando'];           // sheet names in the w
 $combinedLabel = 'All Rivers';
 $perPage = 25;
 
-// Workbook columns G..R (index 6..17) -> output column names
+/* Workbook columns G..R (index 6..17) -> output column names */
 $paramCols = [
     6  => 'DO_mgL',
     7  => 'pH',
@@ -28,19 +28,17 @@ $headers = array_merge(
 
 const MONTHS = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
 
-/* ---------------------------------------------------------------- XLSX reader */
+/* -------------------------------XLSX reader--------------------------------- */
 
-function colIndex(string $ref): int
-{
+function colIndex(string $ref): int {
     preg_match('/^([A-Z]+)/', $ref, $m);
     $n = 0;
     foreach (str_split($m[1]) as $ch) $n = $n * 26 + (ord($ch) - 64);
     return $n - 1;
 }
 
-/** Returns [sheetName => list of rows], each row = [colIndex => string|float|null]. */
-function readWorkbook(string $path): array
-{
+/* Returns [sheetName => list of rows], each row = [colIndex => string|float|null]. */
+function readWorkbook(string $path): array {
     $zip = new ZipArchive();
     if ($zip->open($path) !== true) throw new RuntimeException('Cannot open workbook.');
 
@@ -97,11 +95,10 @@ function readWorkbook(string $path): array
     return $sheets;
 }
 
-/* ---------------------------------------------------------------- cleaning helpers */
+/* ---------------------------------cleaning helpers------------------------------- */
 
-/** Returns [float|null, '<'|'>'|null]. '<0.048*' -> half the limit (flagged); '>16000' -> the bound (flagged). */
-function cleanMeasure($v): array
-{
+/* Returns [float|null, '<'|'>'|null]. '<0.048*' -> half the limit (flagged); '>16000' -> the bound (flagged). */
+function cleanMeasure($v): array {
     if ($v === null) return [null, null];
     if (is_float($v) || is_int($v)) return [(float)$v, null];
     $s = preg_replace('/[\s*,]/', '', (string)$v);      // spaces, asterisks, thousands commas ("26. 344" -> 26.344)
@@ -117,9 +114,8 @@ function cleanMeasure($v): array
     return is_numeric($s) ? [(float)$s, null] : [null, null];
 }
 
-/** Excel serial number or text like "10/17//2016" -> DateTime|null. */
-function parseDate($v): ?DateTime
-{
+/* Excel serial number or text like "10/17//2016" -> DateTime|null. */
+function parseDate($v): ?DateTime {
     if (is_float($v)) {
         if ($v < 1) return null;
         return (new DateTime('1899-12-30'))->modify('+' . (int)$v . ' days');
@@ -132,9 +128,8 @@ function parseDate($v): ?DateTime
     return null;
 }
 
-/** Excel time fraction or text like "12:06PM" -> "HH:MM" (24h), or ''. */
-function parseTime($v): string
-{
+/* Excel time fraction or text like "12:06PM" -> "HH:MM" (24h), or ''. */
+function parseTime($v): string {
     if (is_float($v)) {
         if ($v < 0 || $v >= 1) return '';
         $sec = (int)round($v * 86400);
@@ -148,8 +143,7 @@ function parseTime($v): string
     return '';
 }
 
-function processSheet(array $rows, string $river): array
-{
+function processSheet(array $rows, string $river): array {
     global $paramCols;
     $stats = ['initial' => 0, 'missing' => 0, 'duplicates' => 0, 'corrected' => 0, 'flagged' => 0];
     $clean = [];
@@ -160,18 +154,18 @@ function processSheet(array $rows, string $river): array
     foreach ($rows as $cells) {
         $a = $cells[0] ?? null;
 
-        // Month banner, e.g. "CY 2012 JANUARY" (tolerates typo "CY 20178 DECEMBER")
+        /* Month banner, e.g. "CY 2012 JANUARY" (tolerates typo "CY 20178 DECEMBER") */
         if (is_string($a) && preg_match('/^\s*CY\s*(\d{4})\d*\s+([A-Za-z]+)/', $a, $m)) {
             $idx = array_search(strtoupper($m[2]), MONTHS, true);
             if ($idx !== false) { $year = (int)$m[1]; $month = $idx + 1; }
             continue;
         }
 
-        // Station rows start with the station number (1..5); everything else is header/guideline/footnote
+        /* Station rows start with the station number (1..5); everything else is header/guideline/footnote */
         if (!is_float($a) || $a < 1 || floor($a) != $a || $year === null) continue;
         $stats['initial']++;
 
-        // Date column is authoritative when present (banners have a few typos, e.g. "CY 2016 AUGUST" with 2017 dates)
+        /* Date column is authoritative when present (banners have a few typos, e.g. "CY 2016 AUGUST" with 2017 dates) */
         $dt = parseDate($cells[4] ?? null);
         $rowYear = $year;
         $rowMonth = $month;
@@ -183,6 +177,7 @@ function processSheet(array $rows, string $river): array
             $rowMonth = $dm;
         }
 
+        
         $values = [];
         $flags = [];
         $hasData = false;
@@ -193,7 +188,7 @@ function processSheet(array $rows, string $river): array
             $values[] = ($val === null) ? null : round($val, 6);
         }
 
-        if (!$hasData) {                    // station row with no measurements (e.g. "NO SAMPLING CONDUCTED")
+        if (!$hasData) {   /* station row with no measurements (e.g. "NO SAMPLING CONDUCTED") */
             $stats['missing']++;
             continue;
         }
@@ -218,8 +213,7 @@ function processSheet(array $rows, string $river): array
     return [$clean, $stats];
 }
 
-function writeCsv(string $path, array $headers, array $rows): void
-{
+function writeCsv(string $path, array $headers, array $rows): void {
     $h = fopen($path, 'w');
     fputcsv($h, $headers, ',', '"', '\\');
     foreach ($rows as $r) fputcsv($h, $r, ',', '"', '\\');
@@ -232,8 +226,7 @@ function xlsxCol(int $i): string {
     return $s;
 }
 
-function writeXlsx(string $path, array $headers, array $rows, int $dateCol = 7): void
-{
+function writeXlsx(string $path, array $headers, array $rows, int $dateCol = 7): void {
     $esc = fn($v) => htmlspecialchars((string)$v, ENT_XML1 | ENT_QUOTES, 'UTF-8');
     $X = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
     $ns = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
@@ -288,7 +281,7 @@ function writeXlsx(string $path, array $headers, array $rows, int $dateCol = 7):
     $zip->close();
 }
 
-/* ---------------------------------------------------------------- run pipeline */
+/* --------------------------------run pipeline-------------------------------- */
 
 $error = null;
 $datasets = [];     // label => ['rows'=>, 'stats'=>, 'file'=>]
@@ -329,7 +322,7 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
 $selected = $_GET['dataset'] ?? array_key_first($datasets) ?? $rivers[0];
 if (!isset($datasets[$selected]) && $datasets) $selected = array_key_first($datasets);
 
-// Download (whitelisted by dataset label, served only from ./cleaned)
+/* Download (whitelisted by dataset label, served only from ./cleaned) */
 if (isset($_GET['download']) && isset($datasets[$_GET['download']])) {
     $f = $datasets[$_GET['download']]['file'];
     $isXlsx = ($_GET['format'] ?? 'xlsx') === 'xlsx';
@@ -353,6 +346,7 @@ $totalPages = max(1, (int)ceil($totalRows / $perPage));
 $page = min(max(1, (int)($_GET['page'] ?? 1)), $totalPages);
 $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage) : [];
 ?>
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
