@@ -720,7 +720,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
                     <div class="mb-2">&bull; Final Cleaned Rows:<br><strong class="fs-4" style="color: #2563eb;"><?= number_format(count($cur['rows'])) ?></strong></div>
                 </div>
                 <div class="col-md-4">
-                    <div class="mb-2">&bull; No Samping Rows Restored:<br><strong class="fs-4" style="color: #d97706;"><?= number_format($s['missing']) ?></strong></div>
+                    <div class="mb-2">&bull; No Sampling Rows Restored:<br><strong class="fs-4" style="color: #d97706;"><?= number_format($s['missing']) ?></strong></div>
                 </div>
                 <div class="col-md-4">
                     <div class="mb-0">&bull; Duplicates Dropped:<br><strong class="fs-4" style="color: #dc2626;"><?= number_format($s['duplicates']) ?></strong></div>
@@ -815,7 +815,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
                     </div>
                     <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-outline-secondary px-4 py-2 fs-5 rounded-pill" data-bs-dismiss="modal">Cancel</button>
-                        <a href="?dataset=<?= urlencode($selected) ?>&download=<?= urlencode($selected) ?>&format=xlsx" class="btn btn-dark px-4 py-2 fs-5 rounded-pill shadow-sm">
+                        <a id="confirmDownloadBtn" href="?dataset=<?= urlencode($selected) ?>&download=<?= urlencode($selected) ?>&format=xlsx" class="btn btn-dark px-4 py-2 fs-5 rounded-pill shadow-sm">
                             Yes, Download
                         </a>
                     </div>
@@ -868,6 +868,14 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
 
     // Browser back/forward
     window.addEventListener('popstate', () => loadView(location.href, false));
+
+    document.addEventListener('click', e => {
+        if (!e.target.closest('#confirmDownloadBtn')) return;   // only react to the Yes, Download button
+        const modalEl = document.getElementById('downloadConfirmModal');
+        // small delay so the browser starts the download before the modal hides
+        setTimeout(() => bootstrap.Modal.getInstance(modalEl).hide(), 300);
+    });
+
     </script>
 </body>
 </html>
