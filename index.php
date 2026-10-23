@@ -28,6 +28,28 @@ $headers = array_merge(
 
 const MONTHS = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
 
+/* ---------------------- IMPUTATION SETTINGS (NEW) ---------------------------
+   Position of each field inside one OUTPUT row (same order as $headers).        */
+const COL_YEAR    = 1;    // Year
+const COL_MONTH   = 2;    // Month name (JANUARY..DECEMBER)
+const COL_STATION = 3;    // Station_No
+const COL_DATE    = 7;    // Date  (Y-m-d or '')
+const COL_TIME    = 8;    // Time  (HH:MM or '')
+const COL_P0      = 9;    // first parameter column (DO_mgL)
+const N_PARAMS    = 12;   // DO ... Chlorides  -> columns 9..20
+ 
+/* A gap of up to this many consecutive MISSING months, with a real reading on both
+   sides, is filled with the MEAN of the previous and next reading.
+   Anything longer is a "large" gap and is filled with the MEDIAN.               */
+const MAX_GAP_FOR_MEAN = 3;
+ 
+/* Need at least this many same-month readings (other years) before trusting
+   the "same calendar month" median; otherwise use the station's overall median. */
+const MIN_SAME_MONTH = 2;
+ 
+/* Fecal/Total Coliform are counts (MPN) -> round to whole numbers (param index 6 and 7). */
+const COLIFORM_PARAMS = [6, 7];
+
 /* -------------------------------XLSX reader--------------------------------- */
 
 function colIndex(string $ref): int {
@@ -188,9 +210,10 @@ function processSheet(array $rows, string $river): array {
             $values[] = ($val === null) ? null : round($val, 6);
         }
 
-        if (!$hasData) {   /* station row with no measurements (e.g. "NO SAMPLING CONDUCTED") */
+        if (!$hasData) {
+            /* CHANGED: a "NO SAMPLING CONDUCTED" row is now COUNTED but KEPT (no `continue`).
+               All 12 parameters stay null here and are imputed later in imputeRivers(). */
             $stats['missing']++;
-            continue;
         }
         if ($flags) $stats['flagged']++;
 
@@ -202,7 +225,7 @@ function processSheet(array $rows, string $river): array {
             [$river, $rowYear, MONTHS[$rowMonth - 1], (int)$a, $station, $lat, $lon,
              $dt ? $dt->format('Y-m-d') : '', parseTime($cells[5] ?? null)],
             $values,
-            [implode('; ', $flags)]
+             [implode('; ', $flags)]
         );
 
         $sig = implode('|', array_map(fn($x) => (string)$x, $row));
@@ -211,6 +234,172 @@ function processSheet(array $rows, string $river): array {
         $clean[] = $row;
     }
     return [$clean, $stats];
+}
+
+/* "JANUARY" -> 1 ... "DECEMBER" -> 12 */
+function monthNum(string $name): int {
+    return (int)array_search($name, MONTHS, true) + 1;
+}
+ 
+/* Median of a list of numbers (average of the two middle values if the count is even). */
+function medianOf(array $v): ?float {
+    if (!$v) return null;
+    sort($v);
+    $n = count($v);
+    $m = intdiv($n, 2);
+    return ($n % 2) ? (float)$v[$m] : ($v[$m - 1] + $v[$m]) / 2;
+}
+ 
+/* Mode = most frequent value. Ties are broken by taking the smallest value so results are repeatable. */
+function modeOf(array $v) {
+    if (!$v) return null;
+    $counts = array_count_values($v);
+    $top = array_keys($counts, max($counts));
+    sort($top);
+    return $top[0];
+}
+ 
+/* Fills ONE missing cell.
+   $series    = this station's real readings for this parameter, oldest first: [[monthIndex, monthNo, value], ...]
+   $t         = month index of the missing cell (year*12 + month)
+   $mo        = calendar month (1-12) of the missing cell
+   $riverVals = every real reading of this parameter in this river
+   $allVals   = every real reading of this parameter in all rivers
+   Returns [value, 'MEAN'|'MEDIAN'] or [null, null] if nothing could be found. */
+function imputeValue(array $series, int $t, int $mo, array $riverVals, array $allVals): array {
+    /* nearest real reading BEFORE ($prev) and AFTER ($next) this month at this station */
+    $prev = $next = null;
+    foreach ($series as $o) {
+        if ($o[0] < $t) $prev = $o;                       // keeps the latest one before $t
+        elseif ($o[0] > $t) { $next = $o; break; }        // first one after $t
+    }
+ 
+    /* RULE 1: preceding + succeeding values exist and the gap is short -> MEAN */
+    if ($prev && $next && ($next[0] - $prev[0] - 1) <= MAX_GAP_FOR_MEAN) {
+        return [($prev[2] + $next[2]) / 2, 'MEAN'];
+    }
+ 
+    /* RULE 2: large gap -> MEDIAN of the same calendar month in other years (same station) */
+    $sameMonth = [];
+    foreach ($series as $o) if ($o[1] === $mo) $sameMonth[] = $o[2];
+    if (count($sameMonth) >= MIN_SAME_MONTH) return [medianOf($sameMonth), 'MEDIAN'];
+ 
+    /* RULE 3: MEDIAN of everything this station ever recorded for this parameter */
+    if ($series) return [medianOf(array_column($series, 2)), 'MEDIAN'];
+ 
+    /* RULE 4: MEDIAN of the whole river;  RULE 5: MEDIAN of all rivers */
+    if ($riverVals) return [medianOf($riverVals), 'MEDIAN'];
+    if ($allVals)   return [medianOf($allVals),   'MEDIAN'];
+ 
+    return [null, null];
+}
+ 
+/* Imputes every blank parameter, Date and Time in every river.
+   Input : [river => rows]            (rows still contain null / '' blanks)
+   Output: [[river => completed rows], [river => ['imputed'=>, 'dates'=>, 'times'=>]]] */
+function imputeRivers(array $byRiver): array {
+    global $headers;
+    $names = array_slice($headers, COL_P0, N_PARAMS);   // parameter names, used in Imputed_Flags
+ 
+    /* ---- STEP 1: collect the REAL (observed) values, before anything is filled ---- */
+    $series = [];     // [river][station][param] = list of [monthIndex, monthNo, value]
+    $riverVals = [];  // [river][param] = all real values
+    $allVals = [];    // [param] = all real values (all rivers)
+    $dayObs = [];     // [river]['ym'|'mo'|'all'] = real days-of-month seen
+    $timeObs = [];    // [river]['stmo'|'st'|'all'] = real times seen
+ 
+    foreach ($byRiver as $river => $rows) {
+        foreach ($rows as $r) {
+            $st = $r[COL_STATION];
+            $mo = monthNum($r[COL_MONTH]);
+            $ym = $r[COL_YEAR] * 12 + $mo;               // month index: puts all months on one timeline
+ 
+            for ($p = 0; $p < N_PARAMS; $p++) {
+                $v = $r[COL_P0 + $p];
+                if ($v === null) continue;                // blank -> not a donor
+                $series[$river][$st][$p][] = [$ym, $mo, $v];
+                $riverVals[$river][$p][] = $v;
+                $allVals[$p][] = $v;
+            }
+            if ($r[COL_DATE] !== '') {                    // day-of-month donors for the Date mode
+                $day = (int)substr($r[COL_DATE], 8, 2);
+                $dayObs[$river]['ym'][$ym][] = $day;      // same river, same year+month (other stations)
+                $dayObs[$river]['mo'][$mo][] = $day;      // same river, same calendar month, other years
+                $dayObs[$river]['all'][]     = $day;      // whole river
+            }
+            if ($r[COL_TIME] !== '') {                    // time donors for the Time mode
+                $timeObs[$river]['stmo'][$st][$mo][] = $r[COL_TIME];   // same station + calendar month
+                $timeObs[$river]['st'][$st][]        = $r[COL_TIME];   // same station
+                $timeObs[$river]['all'][]            = $r[COL_TIME];   // whole river
+            }
+        }
+    }
+    /* make sure every station/parameter series runs oldest -> newest (needed for prev/next lookup) */
+    foreach ($series as $rv => $byStation) {
+        foreach ($byStation as $st => $byParam) {
+            foreach ($byParam as $p => $list) {
+                usort($list, fn($a, $b) => $a[0] <=> $b[0]);
+                $series[$rv][$st][$p] = $list;
+            }
+        }
+    }
+ 
+    /* ---- STEP 2: fill every blank ---- */
+    $out = [];
+    $impStats = [];
+    foreach ($byRiver as $river => $rows) {
+        $s = ['imputed' => 0, 'dates' => 0, 'times' => 0];
+ 
+        foreach ($rows as $k => $r) {
+            $st = $r[COL_STATION];
+            $mo = monthNum($r[COL_MONTH]);
+            $ym = $r[COL_YEAR] * 12 + $mo;
+            $flags = [];
+ 
+            /* was this a "No Sampling Conducted" row? (all 12 parameters blank) */
+            $noData = true;
+            for ($p = 0; $p < N_PARAMS; $p++) if ($r[COL_P0 + $p] !== null) { $noData = false; break; }
+ 
+            /* 2a. parameters -> MEAN / MEDIAN */
+            for ($p = 0; $p < N_PARAMS; $p++) {
+                if ($r[COL_P0 + $p] !== null) continue;
+                [$val, $how] = imputeValue(
+                    $series[$river][$st][$p] ?? [], $ym, $mo,
+                    $riverVals[$river][$p] ?? [], $allVals[$p] ?? []
+                );
+                if ($val === null) continue;
+                $r[COL_P0 + $p] = in_array($p, COLIFORM_PARAMS, true) ? round($val) : round($val, 2);
+                $s['imputed']++;
+            }
+ 
+            /* 2b. Date -> MODE of the day-of-month, then rebuilt as YYYY-MM-DD */
+            if ($r[COL_DATE] === '') {
+                $day = modeOf($dayObs[$river]['ym'][$ym] ?? [])      // 1) other stations, same month (same sampling trip)
+                    ?? modeOf($dayObs[$river]['mo'][$mo] ?? [])      // 2) same calendar month in other years (2012 case)
+                    ?? modeOf($dayObs[$river]['all'] ?? []);         // 3) any date in this river
+                if ($day !== null) {
+                    $daysInMonth = (int)(new DateTime(sprintf('%04d-%02d-01', $r[COL_YEAR], $mo)))->format('t');
+                    $r[COL_DATE] = sprintf('%04d-%02d-%02d', $r[COL_YEAR], $mo, min((int)$day, $daysInMonth)); // e.g. day 31 in Feb -> 28
+                    $s['dates']++;
+                }
+            }
+ 
+            /* 2c. Time -> MODE of the HH:MM values */
+            if ($r[COL_TIME] === '') {
+                $tm = modeOf($timeObs[$river]['stmo'][$st][$mo] ?? [])  // 1) same station, same calendar month
+                   ?? modeOf($timeObs[$river]['st'][$st] ?? [])         // 2) same station, any month
+                   ?? modeOf($timeObs[$river]['all'] ?? []);            // 3) any time in this river
+                if ($tm !== null) {
+                    $r[COL_TIME] = $tm;
+                    $s['times']++;
+                }
+            }
+            $rows[$k] = $r;
+        }
+        $out[$river] = $rows;
+        $impStats[$river] = $s;
+    }
+    return [$out, $impStats];
 }
 
 function writeCsv(string $path, array $headers, array $rows): void {
@@ -295,12 +484,23 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
     try {
         if (!is_dir($cleanDir)) mkdir($cleanDir, 0775, true);
         $sheets = readWorkbook($workbookFile);
-        $allRows = [];
-        $allStats = ['initial' => 0, 'missing' => 0, 'duplicates' => 0, 'corrected' => 0, 'flagged' => 0];
-
+        $byRiver = [];     // river => rows
+        $rawStats = [];    // river => stats from cleaning
         foreach ($rivers as $river) {
             if (!isset($sheets[$river])) continue;
-            [$rows, $stats] = processSheet($sheets[$river], $river);
+            [$byRiver[$river], $rawStats[$river]] = processSheet($sheets[$river], $river);
+        }
+ 
+        /* 2) IMPUTE all blanks (needs all rivers loaded at once because the last-resort fallback is cross-river) */
+        [$byRiver, $impStats] = imputeRivers($byRiver);
+ 
+        /* 3) WRITE the files and build the dataset list */
+        $allRows = [];
+        $allStats = ['initial' => 0, 'missing' => 0, 'duplicates' => 0, 'corrected' => 0, 'flagged' => 0,
+                     'imputed' => 0, 'dates' => 0, 'times' => 0];     // CHANGED: 3 new counters
+ 
+        foreach ($byRiver as $river => $rows) {
+            $stats = array_merge($rawStats[$river], $impStats[$river]);
             $file = "$cleanDir/MMORS_{$river}_cleaned.csv";
             writeCsv($file, $headers, $rows);
             writeXlsx("$cleanDir/MMORS_{$river}_cleaned.xlsx", $headers, $rows);
@@ -520,7 +720,7 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
                     <div class="mb-2">&bull; Final Cleaned Rows:<br><strong class="fs-4" style="color: #2563eb;"><?= number_format(count($cur['rows'])) ?></strong></div>
                 </div>
                 <div class="col-md-4">
-                    <div class="mb-2">&bull; Missing Skipped:<br><strong class="fs-4" style="color: #d97706;"><?= number_format($s['missing']) ?></strong></div>
+                    <div class="mb-2">&bull; No Samping Rows Restored:<br><strong class="fs-4" style="color: #d97706;"><?= number_format($s['missing']) ?></strong></div>
                 </div>
                 <div class="col-md-4">
                     <div class="mb-0">&bull; Duplicates Dropped:<br><strong class="fs-4" style="color: #dc2626;"><?= number_format($s['duplicates']) ?></strong></div>
@@ -530,6 +730,15 @@ $previewRows = $cur ? array_slice($cur['rows'], ($page - 1) * $perPage, $perPage
                 </div>
                 <div class="col-md-4">
                     <div class="mb-0">&bull; Flags Generated:<br><strong class="text-dark fs-4"><?= number_format($s['flagged']) ?></strong></div>
+                </div>
+                  <div class="col-md-4">
+                    <div class="mb-0">&bull; Values Imputed (Mean/Median):<br><strong class="fs-4" style="color: #7c3aed;"><?= number_format($s['imputed']) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-0">&bull; Dates Imputed (Mode):<br><strong class="fs-4" style="color: #7c3aed;"><?= number_format($s['dates']) ?></strong></div>
+                </div>
+                <div class="col-md-4">
+                    <div class="mb-0">&bull; Times Imputed (Mode):<br><strong class="fs-4" style="color: #7c3aed;"><?= number_format($s['times']) ?></strong></div>
                 </div>
             </div>
         </div>
