@@ -228,9 +228,13 @@ function processSheet(array $rows, string $river): array {
              [implode('; ', $flags)]
         );
 
-        $sig = implode('|', array_map(fn($x) => (string)$x, $row));
-        if (isset($seen[$sig])) { $stats['duplicates']++; continue; }
-        $seen[$sig] = true;
+        /* Missing readings do not establish a duplicate observation. Keep every
+           no-sampling record so it can be counted and imputed independently. */
+        if ($hasData) {
+            $sig = implode('|', array_map(fn($x) => (string)$x, $row));
+            if (isset($seen[$sig])) { $stats['duplicates']++; continue; }
+            $seen[$sig] = true;
+        }
         $clean[] = $row;
     }
     return [$clean, $stats];
@@ -239,6 +243,16 @@ function processSheet(array $rows, string $river): array {
 /* "JANUARY" -> 1 ... "DECEMBER" -> 12 */
 function monthNum(string $name): int {
     return (int)array_search($name, MONTHS, true) + 1;
+}
+
+/* Sort the completed sampling timeline before exporting or paginating it.
+   Corrected dates can differ from workbook order; months must be numeric. */
+function sortDatasetRows(array $rows): array {
+    usort($rows, function (array $a, array $b): int {
+        return [(int)$a[COL_YEAR], monthNum($a[COL_MONTH]), $a[COL_DATE], $a[COL_TIME], $a[0], (int)$a[COL_STATION]]
+            <=> [(int)$b[COL_YEAR], monthNum($b[COL_MONTH]), $b[COL_DATE], $b[COL_TIME], $b[0], (int)$b[COL_STATION]];
+    });
+    return $rows;
 }
  
 /* Median of a list of numbers (average of the two middle values if the count is even). */
@@ -500,6 +514,7 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
                      'imputed' => 0, 'dates' => 0, 'times' => 0];     // CHANGED: 3 new counters
  
         foreach ($byRiver as $river => $rows) {
+            $rows = sortDatasetRows($rows);
             $stats = array_merge($rawStats[$river], $impStats[$river]);
             $file = "$cleanDir/MMORS_{$river}_cleaned.csv";
             writeCsv($file, $headers, $rows);
@@ -509,6 +524,7 @@ if (!extension_loaded('zip') || !function_exists('simplexml_load_string')) {
             foreach ($allStats as $k => $_) $allStats[$k] += $stats[$k];
         }
         if ($datasets) {
+            $allRows = sortDatasetRows($allRows);
             $file = "$cleanDir/MMORS_All_Rivers_cleaned.csv";
             writeCsv($file, $headers, $allRows);
             writeXlsx("$cleanDir/MMORS_All_Rivers_cleaned.xlsx", $headers, $allRows);
