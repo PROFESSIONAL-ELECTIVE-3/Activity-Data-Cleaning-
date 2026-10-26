@@ -209,7 +209,7 @@ function processSheet(array $rows, string $river): array {
         }
 
         if (!$hasData) {
-            /* CHANGED: a "NO SAMPLING CONDUCTED" row is now COUNTED but KEPT (no `continue`).
+            /* "NO SAMPLING CONDUCTED" row is now counted but kept for imputation.
                All 12 parameters stay null here and are imputed later in imputeRivers(). */
             $stats['missing']++;
         }
