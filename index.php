@@ -28,7 +28,7 @@ $headers = array_merge(
 
 const MONTHS = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
 
-/* ---------------------- IMPUTATION SETTINGS (NEW) ---------------------------
+/* ---------------------- IMPUTATION SETTINGS ---------------------------
    Position of each field inside one OUTPUT row (same order as $headers).        */
 const COL_YEAR    = 1;    // Year
 const COL_MONTH   = 2;    // Month name (JANUARY..DECEMBER)
@@ -38,9 +38,8 @@ const COL_TIME    = 8;    // Time  (HH:MM or '')
 const COL_P0      = 9;    // first parameter column (DO_mgL)
 const N_PARAMS    = 12;   // DO ... Chlorides  -> columns 9..20
  
-/* A gap of up to this many consecutive MISSING months, with a real reading on both
-   sides, is filled with the MEAN of the previous and next reading.
-   Anything longer is a "large" gap and is filled with the MEDIAN.               */
+/* A real reading on both sides, is filled with the MEAN of the previous and next reading.
+   Anything longer is a "large" gap and is filled with the MEDIAN. */
 const MAX_GAP_FOR_MEAN = 3;
  
 /* Need at least this many same-month readings (other years) before trusting
@@ -51,7 +50,6 @@ const MIN_SAME_MONTH = 2;
 const COLIFORM_PARAMS = [6, 7];
 
 /* -------------------------------XLSX reader--------------------------------- */
-
 function colIndex(string $ref): int {
     preg_match('/^([A-Z]+)/', $ref, $m);
     $n = 0;
