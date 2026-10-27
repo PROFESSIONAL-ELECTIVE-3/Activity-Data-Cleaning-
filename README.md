@@ -6,6 +6,6 @@ A writable project folder (the script creates cleaned/)
 How to Run
 1. Make sure MMORS_water_quality_results_2012-2018_orig.xlsx is in the same folder as index.php.
 2. From that folder, start PHP's built-in server:
-3. Terminalbash
+3. Enter a Command in the Terminal
    php -S localhost:8000
 4. Open http://localhost:8000/index.php in a browser.
